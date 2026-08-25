@@ -1,0 +1,6 @@
+.DS_Store
+/polished_work/data/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+/polished_portfolio/data/

@@ -26,8 +26,8 @@ graph LR
 ```
 
 ### Key Technical Contributions
-1. **Representational Efficiency**: 1280-dimensional mean-pooled representations from layer 33 of ESM-2 preserve structural sorting signals without requiring end-to-end fine-tuning.
-2. **Leak-Free Threshold Calibration**: Extreme compartment imbalance suppresses rare-class predictions under default scalar thresholds ($\tau = 0.5$). We implement independent per-compartment threshold calibration $\tau_c^* = \operatorname{argmax}_\tau \text{MCC}(y_{\text{cal}}, \hat{p}_{\text{cal}} > \tau)$ strictly on inner training/validation partitions to prevent test leakage.
+1. **Representational Efficiency**: 1280-dimensional mean-pooled representations from layer 33 of ESM-2 preserve structural sorting signals while enforcing constant input size.
+2. **Leak-Free Threshold Calibration**: Extreme dataset imbalance suppresses rare-class predictions under default scalar thresholds ($\tau = 0.5$). We implement independent per-compartment threshold calibration $\tau_c^* = \operatorname{argmax}_\tau \text{MCC}(y_{\text{cal}}, \hat{p}_{\text{cal}} > \tau)$ strictly on inner training/validation partitions to prevent test leakage.
 3. **Rigorous Homology-Split Generalization**: Cross-validation is conducted strictly across sequence-homology partitions, ensuring models generalize across evolutionarily distant protein families.
 4. **Independent Benchmark Generalization**: Validation on the independent **Human Protein Atlas (HPA)** benchmark (1,716 proteins) across 5 independent seeds and ensemble predictions.
 5. **Intra-Nuclear Subcompartment Transfer**: Transfer of the optimized 2-Hidden-Layer MLP architecture to resolve 7 fine-grained intra-nuclear subcompartments (Nucleoplasm, Nucleoli, Nuclear Bodies, Speckles, Nuclear Membrane, Fibrillar Center, Other).
@@ -75,7 +75,7 @@ Evaluating the top-performing 2-Hidden-Layer MLP (`M2†`) across 5 independentl
 ## 🏗️ Repository Architecture
 
 ```text
-portfolio/
+polished_work/
 ├── data/                               # Curated embedding datasets
 │   ├── df_train_loc_mean.csv           # Swiss-Prot dev set (1280-dim mean pooling)
 │   ├── df_train_loc_max.csv            # Swiss-Prot dev set (1280-dim max pooling)
@@ -111,6 +111,18 @@ portfolio/
 │   ├── test_metrics.py                 # Multi-label metric parity against scikit-learn
 │   └── test_reproducibility.py          # Deterministic seed reproducibility checks
 └── pyproject.toml                      # Standard packaging & pytest configuration
+original_artifact/
+├── Data_Processing_Code/
+│   ├── ESM_data_processing.ipynb
+│   ├── graphing.py
+├── Final_Experiments/
+│   ├── logistic_regression_balanced_experiments.ipynb
+│   ├── logistic_regression_with_all_data.ipynb
+│   ├── MLP_experiments.ipynb
+│   ├── MLP_for_nuclear.ipynb
+│   ├── MLP_two_hidden_evaluation.ipynb
+│   ├── MLP_two_hidden_experiments.ipynb
+│   ├── raw_data_processing.ipynb
 ```
 
 ---

@@ -202,12 +202,8 @@ All cross-validation splits enforce that homologous protein sequences belong to 
 
 ---
 
-## 👥 Attribution & Project Context
-
-This project originated as a final project for **Stanford CS229: Machine Learning**.
+## 👥 Attribution
 
 - **Max Scherer**: Model architectures (Logistic Regression, 1H/2H MLPs), Ridge regularization, cross-validation benchmarking, loss ablations, sub-nuclear transfer experiments, and codebase refactoring.
 - **Michael Balagula**: Data pipeline curation and UniProt streaming extraction.
 - **Logan Campbell**: Evaluation design and metric aggregation.
-
-*The original course artifact has been preserved in its historical state; this repository represents the cleaned, modularized, and rigorously tested technical portfolio release.*

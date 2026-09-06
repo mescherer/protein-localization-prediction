@@ -1,3 +1,23 @@
+Metadata-Version: 2.4
+Name: protein-localization
+Version: 0.1.0
+Summary: Multi-label protein subcellular and sub-nuclear localization prediction using ESM-2 representations.
+Author: Max Scherer, Michael Balagula, Logan Campbell
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: torch>=2.0.0
+Requires-Dist: numpy>=1.23.0
+Requires-Dist: pandas>=1.5.0
+Requires-Dist: scikit-learn>=1.2.0
+Requires-Dist: matplotlib>=3.6.0
+Requires-Dist: seaborn>=0.12.0
+Requires-Dist: torchvision>=0.15.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Dynamic: license-file
+
 # Multi-Label Protein Subcellular & Sub-Nuclear Localization with ESM-2 Embeddings
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -9,7 +29,7 @@ An end-to-end machine learning system for predicting multi-label subcellular and
 
 ---
 
-## Scientific & Technical Overview
+## 🔬 Scientific & Technical Overview
 
 Predicting protein subcellular localization directly from sequence is essential for annotating uncharacterized proteomes, understanding functional networks, and identifying therapeutic drug targets. 
 
@@ -27,14 +47,14 @@ graph LR
 
 ### Key Technical Contributions
 1. **Representational Efficiency**: 1280-dimensional mean-pooled representations from layer 33 of ESM-2 preserve structural sorting signals while enforcing constant input size.
-2. **Leak-Free Threshold Calibration**: Extreme dataset imbalance suppresses rare-class predictions under default scalar thresholds ($\tau = 0.5$). We implement independent per-compartment threshold calibration strictly on inner training/validation partitions to prevent test leakage.
+2. **Leak-Free Threshold Calibration**: Extreme dataset imbalance suppresses rare-class predictions under default scalar thresholds ($\tau = 0.5$). We implement independent per-compartment threshold calibration $\tau_c^* = \operatorname{argmax}_\tau \text{MCC}(y_{\text{cal}}, \hat{p}_{\text{cal}} > \tau)$ strictly on inner training/validation partitions to prevent test leakage.
 3. **Rigorous Homology-Split Generalization**: Cross-validation is conducted strictly across sequence-homology partitions, ensuring models generalize across evolutionarily distant protein families.
 4. **Independent Benchmark Generalization**: Validation on the independent **Human Protein Atlas (HPA)** benchmark (1,716 proteins) across 5 independent seeds and ensemble predictions.
 5. **Intra-Nuclear Subcompartment Transfer**: Transfer of the optimized 2-Hidden-Layer MLP architecture to resolve 7 fine-grained intra-nuclear subcompartments (Nucleoplasm, Nucleoli, Nuclear Bodies, Speckles, Nuclear Membrane, Fibrillar Center, Other).
 
 ---
 
-## Benchmark Results
+## 📊 Benchmark Results
 
 ### 1. Subcellular Cross-Validation Matrix (11 Compartments)
 
@@ -72,22 +92,50 @@ Evaluating the top-performing 2-Hidden-Layer MLP (`M2†`) across 5 independentl
 
 ---
 
-## Repository Architecture
+## 🏗️ Repository Architecture
 
 ```text
-data/                               # Curated embedding datasets
-├── df_train_loc_mean.csv           # Swiss-Prot dev set (1280-dim mean pooling)
-├── df_train_loc_max.csv            # Swiss-Prot dev set (1280-dim max pooling)
-├── df_test_loc_mean.csv            # Independent HPA test set (mean pooling)
-├── df_test_loc_max.csv             # Independent HPA test set (max pooling)
-└── df_Atlass_nuclear_localizations_mean_pooling.csv  # Sub-nuclear dataset
-figures/                            # Vector & raster figures
-├── cross_validated_mcc_heatmap.pdf
-├── cross_validated_mcc_heatmap.png
-├── prediction_error_categories.pdf
-└── per_class_tp_fn_fp.pdf
-notebooks/                          # Research experiments
-├── initial_experiments/
+polished_work/
+├── data/                               # Curated embedding datasets
+│   ├── df_train_loc_mean.csv           # Swiss-Prot dev set (1280-dim mean pooling)
+│   ├── df_train_loc_max.csv            # Swiss-Prot dev set (1280-dim max pooling)
+│   ├── df_test_loc_mean.csv            # Independent HPA test set (mean pooling)
+│   ├── df_test_loc_max.csv             # Independent HPA test set (max pooling)
+│   └── df_Atlass_nuclear_localizations_mean_pooling.csv  # Sub-nuclear dataset
+├── figures/                            # Publication-grade vector & raster figures
+│   ├── cross_validated_mcc_heatmap.pdf
+│   ├── cross_validated_mcc_heatmap.png
+│   ├── prediction_error_categories.pdf
+│   └── per_class_tp_fn_fp.pdf
+├── notebooks/                          # Clean, modular research walkthroughs
+│   ├── 01_data_and_embeddings.ipynb    # Dataset exploration, label distribution & PCA
+│   ├── 02_subcellular_benchmarks.ipynb # Model benchmarking & loss/pooling ablations
+│   ├── 03_thresholding_and_hpa_test.ipynb # MCC threshold calibration & HPA testing
+│   └── 04_nuclear_subcompartments.ipynb   # Sub-nuclear localization transfer
+├── src/
+│   └── protein_loc/                    # Core reusable Python package
+│       ├── __init__.py                 # Clean package interface
+│       ├── data.py                     # Loaders, homology partitioners, dataloaders
+│       ├── models.py                   # PyTorch Logistic Regression & modular MLPs
+│       ├── losses.py                   # BCE, weighted BCE, Focal loss, Ridge penalties
+│       ├── thresholding.py             # Leak-free per-class MCC threshold optimization
+│       ├── metrics.py                  # Multi-label Exact match, Jaccard, F1, MCC
+│       ├── training.py                 # Deterministic training loop & determinism helpers
+│       ├── evaluation.py               # Cross-validation, HPA test, nuclear pipelines
+│       └── visualization.py            # Heatmaps, error pies, loss curve renderers
+├── tests/                              # Comprehensive automated test suite (27 tests)
+│   ├── test_data.py                    # Schema validation, disjoint split invariants
+│   ├── test_models.py                  # Forward shape contracts & gradient flow
+│   ├── test_losses.py                  # Loss math verification & Frobenius equivalence
+│   ├── test_thresholding.py            # MCC grid search, no-mutation & edge-case checks
+│   ├── test_metrics.py                 # Multi-label metric parity against scikit-learn
+│   └── test_reproducibility.py          # Deterministic seed reproducibility checks
+└── pyproject.toml                      # Standard packaging & pytest configuration
+original_artifact/
+├── Data_Processing_Code/
+│   ├── ESM_data_processing.ipynb
+│   ├── graphing.py
+├── Final_Experiments/
 │   ├── logistic_regression_balanced_experiments.ipynb
 │   ├── logistic_regression_with_all_data.ipynb
 │   ├── MLP_experiments.ipynb
@@ -95,35 +143,11 @@ notebooks/                          # Research experiments
 │   ├── MLP_two_hidden_evaluation.ipynb
 │   ├── MLP_two_hidden_experiments.ipynb
 │   ├── raw_data_processing.ipynb
-│   └── ESM_data_processing.ipynb
-├── 01_data_and_embeddings.ipynb       # Dataset exploration, label distribution & PCA
-├── 02_subcellular_benchmarks.ipynb    # Model benchmarking & loss/pooling ablations
-├── 03_thresholding_and_hpa_test.ipynb # MCC threshold calibration & HPA testing
-└── 04_nuclear_subcompartments.ipynb   # Sub-nuclear localization transfer
-src/
-└── protein_loc/                    # Core reusable Python package
-│   ├── __init__.py                 # Clean package interface
-│   ├── data.py                     # Loaders, homology partitioners, dataloaders
-│   ├── models.py                   # PyTorch Logistic Regression & modular MLPs
-│   ├── losses.py                   # BCE, weighted BCE, Focal loss, Ridge penalties
-│   ├── thresholding.py             # Leak-free per-class MCC threshold optimization
-│   ├── metrics.py                  # Multi-label Exact match, Jaccard, F1, MCC
-│   ├── training.py                 # Deterministic training loop & determinism helpers
-│   ├── evaluation.py               # Cross-validation, HPA test, nuclear pipelines
-│   └── visualization.py            # Heatmaps, error pies, loss curve renderers
-tests/                              # Comprehensive automated test suite (27 tests)
-├── test_data.py                    # Schema validation, disjoint split invariants
-├── test_models.py                  # Forward shape contracts & gradient flow
-├── test_losses.py                  # Loss math verification & Frobenius equivalence
-├── test_thresholding.py            # MCC grid search, no-mutation & edge-case checks
-├── test_metrics.py                 # Multi-label metric parity against scikit-learn
-└── test_reproducibility.py         # Deterministic seed reproducibility checks
-pyproject.toml                      # Standard packaging & pytest configuration
 ```
 
 ---
 
-## Quickstart & Reproducibility
+## 🚀 Quickstart & Reproducibility
 
 ### 1. Environment Setup
 
@@ -186,19 +210,20 @@ print(pl.format_metrics_table(metrics))
 
 ---
 
-## Methodological Notes & Design Decisions
+## ⚖️ Methodological Notes & Design Decisions
 
 ### Leakage-Free Threshold Optimization Protocol
-In multi-label classification under class imbalance, predicting with a fixed threshold (tau=0.5) suppresses recall on rare classes.
-- **Portfolio Implementation**: Thresholds are calibrated strictly on training/validation splits over a discrete grid [0.01, 0.99]. The calibrated vector is then frozen and applied to strictly held-out test partitions.
+In multi-label classification under class imbalance, predicting with a fixed threshold $\tau=0.5$ suppresses recall on rare classes. 
+- **Historical Approach**: Optimizing thresholds directly on the evaluation set yields overly optimistic scores due to label leakage.
+- **Portfolio Implementation**: Thresholds $\tau_c^* = \operatorname{argmax}_\tau \text{MCC}(y_{\text{train}}, \hat{p}_{\text{train}} > \tau)$ are calibrated strictly on training/validation splits over a discrete grid $\tau \in [0.01, 0.99]$. The calibrated vector $\boldsymbol{\tau}^*$ is then frozen and applied to strictly held-out test partitions.
 
 ### Homology Split Invariant
 All cross-validation splits enforce that homologous protein sequences belong to the same partition. This prevents sequence similarity leakage between training and validation folds.
 
 ---
 
-## Attribution
+## 👥 Attribution
 
-- **Max Scherer**: Model architectures (Logistic Regression, 1H/2H MLPs), Ridge regularization, cross-validation benchmarking, loss ablations, sub-nuclear transfer experiments.
+- **Max Scherer**: Model architectures (Logistic Regression, 1H/2H MLPs), Ridge regularization, cross-validation benchmarking, loss ablations, sub-nuclear transfer experiments, and codebase refactoring.
 - **Michael Balagula**: Data pipeline curation and UniProt streaming extraction.
 - **Logan Campbell**: Evaluation design and metric aggregation.

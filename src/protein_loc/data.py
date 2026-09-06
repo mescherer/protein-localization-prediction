@@ -8,6 +8,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import KFold, train_test_split
+from imblearn.over_sampling import SMOTE
+from sklearn.neighbors import NearestNeighbors
 
 
 SUBCELLULAR_LOCATIONS: List[str] = [
@@ -200,6 +202,259 @@ def compute_class_weights(y_train: np.ndarray) -> torch.Tensor:
     pos_counts = np.maximum(pos_counts, 1.0)
     weights = y.shape[0] / pos_counts
     return torch.tensor(weights, dtype=torch.float32)
+
+
+def _resolve_smote_target_count(y: np.ndarray, target_count: Optional[int] = None) -> int:
+    """Resolve the synthetic positive target count for SMOTE-based oversampling."""
+    if target_count is None:
+        target_count = int(np.max(y.sum(axis=0)))
+    return max(1, int(target_count))
+
+
+def _get_minority_labels(y: np.ndarray, minority_labels: Optional[List[int]] = None) -> List[int]:
+    """Return the minority label indices under a one-vs-rest positive-count definition."""
+    y = np.asarray(y)
+    positive_counts = y.sum(axis=0)
+    majority_count = int(np.max(positive_counts))
+    minority_idx = np.where(positive_counts < majority_count)[0].tolist()
+    if minority_labels is not None:
+        minority_idx = [idx for idx in minority_labels if idx in minority_idx]
+    return minority_idx
+
+
+def smote_per_label(
+    X: np.ndarray,
+    y: np.ndarray,
+    target_count: Optional[int] = None,
+    minority_labels: Optional[List[int]] = None,
+    random_state: int = 42,
+    return_metadata: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Oversample minority labels independently with standard one-vs-rest SMOTE.
+
+    Synthetic samples inherit only the triggering minority label and set all other
+    labels to 0. This provides a direct per-label SMOTE baseline for comparison.
+    """
+    X = np.asarray(X, dtype=np.float64)
+    y = np.asarray(y, dtype=np.int8)
+    if X.shape[0] != y.shape[0]:
+        raise ValueError("X and y must contain the same number of samples.")
+
+    target_count = _resolve_smote_target_count(y, target_count)
+    minority_idx = _get_minority_labels(y, minority_labels)
+
+    if not minority_idx:
+        if return_metadata:
+            return X.copy(), y.copy(), {"minority_labels": [], "generated_samples": 0}
+        return X.copy(), y.copy()
+
+    synthetic_X_parts = []
+    synthetic_y_parts = []
+    metadata = {"minority_labels": minority_idx, "generated_samples": 0}
+
+    for label_idx in minority_idx:
+        binary_y = y[:, label_idx].astype(int)
+        if np.all(binary_y == 1) or np.all(binary_y == 0):
+            continue
+
+        smote = SMOTE(sampling_strategy={1: target_count}, random_state=random_state)
+        X_resampled, y_resampled = smote.fit_resample(X, binary_y)
+        n_original = X.shape[0]
+        synthetic_mask = np.arange(X_resampled.shape[0]) >= n_original
+        synthetic_X = X_resampled[synthetic_mask]
+        if synthetic_X.size == 0:
+            continue
+
+        synthetic_Y = np.zeros((synthetic_X.shape[0], y.shape[1]), dtype=np.int8)
+        synthetic_Y[:, label_idx] = 1
+        synthetic_X_parts.append(synthetic_X)
+        synthetic_y_parts.append(synthetic_Y)
+        metadata["generated_samples"] += synthetic_X.shape[0]
+
+    if not synthetic_X_parts:
+        if return_metadata:
+            return X.copy(), y.copy(), metadata
+        return X.copy(), y.copy()
+
+    X_aug = np.vstack([X.copy(), *synthetic_X_parts])
+    y_aug = np.vstack([y.copy(), *synthetic_y_parts])
+
+    if return_metadata:
+        return X_aug, y_aug, metadata
+    return X_aug, y_aug
+
+
+def smote_union(
+    X: np.ndarray,
+    y: np.ndarray,
+    target_count: Optional[int] = None,
+    minority_labels: Optional[List[int]] = None,
+    random_state: int = 42,
+    return_metadata: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Oversample minority labels with union labels based on parent-class membership.
+
+    For each synthetic sample, the label vector is the union of labels carried by the
+    pair of minority-class samples used to construct the interpolation. This provides
+    a second baseline that preserves multi-label structure without conditional
+    propagation.
+    """
+    rng = np.random.default_rng(random_state)
+    X = np.asarray(X, dtype=np.float64)
+    y = np.asarray(y, dtype=np.int8)
+    if X.shape[0] != y.shape[0]:
+        raise ValueError("X and y must contain the same number of samples.")
+
+    target_count = _resolve_smote_target_count(y, target_count)
+    minority_idx = _get_minority_labels(y, minority_labels)
+
+    if not minority_idx:
+        if return_metadata:
+            return X.copy(), y.copy(), {"minority_labels": [], "generated_samples": 0}
+        return X.copy(), y.copy()
+
+    synthetic_X_parts = []
+    synthetic_y_parts = []
+    metadata = {"minority_labels": minority_idx, "generated_samples": 0}
+
+    for label_idx in minority_idx:
+        positive_idx = np.where(y[:, label_idx] == 1)[0]
+        if len(positive_idx) < 2:
+            continue
+
+        n_needed = max(0, target_count - int(positive_idx.size))
+        if n_needed <= 0:
+            continue
+
+        positive_X = X[positive_idx]
+        neighbor_model = NearestNeighbors(n_neighbors=min(5, len(positive_X)), metric="euclidean")
+        neighbor_model.fit(positive_X)
+
+        synthetic_X = np.empty((n_needed, X.shape[1]), dtype=np.float64)
+        synthetic_Y = np.zeros((n_needed, y.shape[1]), dtype=np.int8)
+
+        for i in range(n_needed):
+            base_pos = rng.integers(0, len(positive_idx))
+            base_sample = positive_X[base_pos]
+            neighbor_indices = neighbor_model.kneighbors(base_sample.reshape(1, -1), return_distance=False)[0]
+            neighbor_indices = [idx for idx in neighbor_indices if idx != base_pos]
+            if not neighbor_indices:
+                neighbor_indices = [base_pos]
+            neighbor_pos = neighbor_indices[rng.integers(0, len(neighbor_indices))]
+            neighbor_sample = positive_X[neighbor_pos]
+            alpha = rng.random()
+            synthetic_sample = base_sample + alpha * (neighbor_sample - base_sample)
+            synthetic_X[i] = synthetic_sample
+
+            parent_union = np.logical_or(y[positive_idx[base_pos]], y[positive_idx[neighbor_pos]]).astype(np.int8)
+            synthetic_Y[i] = parent_union
+
+        synthetic_X_parts.append(synthetic_X)
+        synthetic_y_parts.append(synthetic_Y)
+        metadata["generated_samples"] += synthetic_X.shape[0]
+
+    if not synthetic_X_parts:
+        if return_metadata:
+            return X.copy(), y.copy(), metadata
+        return X.copy(), y.copy()
+
+    X_aug = np.vstack([X.copy(), *synthetic_X_parts])
+    y_aug = np.vstack([y.copy(), *synthetic_y_parts])
+
+    if return_metadata:
+        return X_aug, y_aug, metadata
+    return X_aug, y_aug
+
+
+def smote_thresholded_label_propagation(
+    X: np.ndarray,
+    y: np.ndarray,
+    co_occurrence: np.ndarray,
+    threshold: float = 0.5,
+    target_count: Optional[int] = None,
+    minority_labels: Optional[List[int]] = None,
+    random_state: int = 42,
+    return_metadata: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Oversample minority labels with conditional label propagation using a co-occurrence matrix.
+
+    Synthetic samples inherit the triggering label plus any other labels j for which
+    co_occurrence[label_idx, j] >= threshold. If multiple minority-label campaigns
+    generate the same synthetic point, the function raises an informative error rather
+    than silently deduplicating the sample.
+    """
+    X = np.asarray(X, dtype=np.float64)
+    y = np.asarray(y, dtype=np.int8)
+    co_occurrence = np.asarray(co_occurrence, dtype=np.float64)
+    if X.shape[0] != y.shape[0]:
+        raise ValueError("X and y must contain the same number of samples.")
+    if co_occurrence.shape != (y.shape[1], y.shape[1]):
+        raise ValueError(
+            f"co_occurrence must have shape ({y.shape[1]}, {y.shape[1]}), got {co_occurrence.shape}."
+        )
+
+    target_count = _resolve_smote_target_count(y, target_count)
+    minority_idx = _get_minority_labels(y, minority_labels)
+
+    if not minority_idx:
+        if return_metadata:
+            return X.copy(), y.copy(), {"minority_labels": [], "generated_samples": 0, "duplicate_count": 0}
+        return X.copy(), y.copy()
+
+    synthetic_X_parts = []
+    synthetic_y_parts = []
+    metadata = {"minority_labels": minority_idx, "generated_samples": 0, "duplicate_count": 0}
+    seen_points = {}
+
+    for label_idx in minority_idx:
+        binary_y = y[:, label_idx].astype(int)
+        if np.all(binary_y == 1) or np.all(binary_y == 0):
+            continue
+
+        smote = SMOTE(sampling_strategy={1: target_count}, random_state=random_state)
+        X_resampled, y_resampled = smote.fit_resample(X, binary_y)
+        n_original = X.shape[0]
+        synthetic_mask = np.arange(X_resampled.shape[0]) >= n_original
+        synthetic_X = X_resampled[synthetic_mask]
+        if synthetic_X.size == 0:
+            continue
+
+        synthetic_Y = np.zeros((synthetic_X.shape[0], y.shape[1]), dtype=np.int8)
+        synthetic_Y[:, label_idx] = 1
+        for other_label in range(y.shape[1]):
+            if other_label == label_idx:
+                continue
+            synthetic_Y[:, other_label] = (co_occurrence[label_idx, other_label] >= threshold).astype(np.int8)
+
+        for i in range(synthetic_X.shape[0]):
+            key = tuple(np.round(synthetic_X[i], 12).tolist())
+            if key in seen_points:
+                metadata["duplicate_count"] += 1
+                seen_points[key].append(label_idx)
+            else:
+                seen_points[key] = [label_idx]
+
+        synthetic_X_parts.append(synthetic_X)
+        synthetic_y_parts.append(synthetic_Y)
+        metadata["generated_samples"] += synthetic_X.shape[0]
+
+    if metadata["duplicate_count"] > 0:
+        raise ValueError(
+            "Detected duplicate synthetic points across minority-label campaigns. "
+            "This requires a handling decision before proceeding."
+        )
+
+    if not synthetic_X_parts:
+        if return_metadata:
+            return X.copy(), y.copy(), metadata
+        return X.copy(), y.copy()
+
+    X_aug = np.vstack([X.copy(), *synthetic_X_parts])
+    y_aug = np.vstack([y.copy(), *synthetic_y_parts])
+
+    if return_metadata:
+        return X_aug, y_aug, metadata
+    return X_aug, y_aug
 
 
 def get_dataloader(

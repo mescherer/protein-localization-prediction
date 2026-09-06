@@ -32,6 +32,7 @@ def run_cross_validation(
     batch_size: int = 64,
     criterion_factory: Optional[Callable[[torch.Tensor], nn.Module]] = None,
     regularizer: Optional[Callable[[nn.Module], torch.Tensor]] = None,
+    train_augmentation: Optional[Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]] = None,
     calibrate_thresholds: bool = True,
     seed: int = 42,
     verbose: bool = False,
@@ -72,6 +73,10 @@ def run_cross_validation(
         set_seed(seed + fold_idx)
         x_tr, y_tr = X[train_idx], y[train_idx]
         x_val, y_val = X[val_idx], y[val_idx]
+        x_cal, y_cal = x_tr, y_tr
+
+        if train_augmentation is not None:
+            x_tr, y_tr = train_augmentation(x_tr, y_tr)
 
         train_loader = get_dataloader(x_tr, y_tr, batch_size=batch_size, shuffle=True)
 
@@ -99,8 +104,8 @@ def run_cross_validation(
         if calibrate_thresholds:
             # Calibrate thresholds using training predictions
             # We train a quick inner predictor or use training set predictions to select thresholds
-            tr_probs = predict_probs(trained_model, x_tr)
-            tau = optimize_thresholds_mcc(tr_probs, y_tr)
+            tr_probs = predict_probs(trained_model, x_cal)
+            tau = optimize_thresholds_mcc(tr_probs, y_cal)
         else:
             tau = np.full(len(locations), 0.5)
 

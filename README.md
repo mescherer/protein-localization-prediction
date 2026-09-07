@@ -53,15 +53,26 @@ Leave-one-homology-partition-out cross-validated Matthews Correlation Coefficien
 | **2-Hidden MLP (`M2`)** | Standard BCE ($1280 \to 128 \to 64 \to 11$) | Mean | $29.8\%$ | $0.580$ | $0.675$ | $0.588$ | $0.551$ |
 | **2-Hidden MLP (`M2†`)** | **Ridge Regularizer ($\lambda=10^{-4}$)** | **Mean** | **$35.1\%$** | **$0.636$** | **$0.724$** | **$0.648$** | **$0.624$** |
 
+### 2. SMOTE Investigation
+
+Taking the best-performing model based on mean MCC, we tested several dataset-balancing techniques. All SMOTE variants used the same 2-hidden-layer MLP with L2 ridge regularization; the only difference between them was the data-balancing method. **Naive (per-label) SMOTE** treated each localization label independently: all proteins positive for a given label were included regardless of their other localizations, and the SMOTEd samples received only that target label. **Union SMOTE** assigned each SMOTEd sample the union of the labels from the pair used to generate it. **Matrix SMOTE** used a per-class label co-occurrence matrix to assign labels to each synthetic sample according to their estimated probabilities of co-occurrence.
+
+| Model            |   Exact Match   |      Jaccard      |      Micro-F1     |      Macro-F1     |      Mean MCC     |
+| :--------------- | :-------------: | :---------------: | :---------------: | :---------------: | :---------------: |
+| **2HL MLP**      | $46.3 \pm 1.2%$ | $0.641 \pm 0.008$ | $0.701 \pm 0.004$ | $0.586 \pm 0.012$ | $0.537 \pm 0.019$ |
+| **SMOTE naive**  | $39.1 \pm 2.5%$ | $0.563 \pm 0.022$ | $0.640 \pm 0.014$ | $0.545 \pm 0.010$ | $0.490 \pm 0.006$ |
+| **SMOTE union**  | $38.6 \pm 2.8%$ | $0.605 \pm 0.017$ | $0.676 \pm 0.007$ | $0.576 \pm 0.010$ | $0.513 \pm 0.006$ |
+| **SMOTE matrix** | $38.5 \pm 4.6%$ | $0.583 \pm 0.022$ | $0.659 \pm 0.010$ | $0.553 \pm 0.001$ | $0.494 \pm 0.006$ |
+
 > **Notation**: ‡ Class-weighted BCE ($\alpha_c = N / N_c$); ★ Sigmoid Focal Loss ($\gamma=2.0$); † L2 Ridge Frobenius penalty ($\lambda=10^{-4}$).
 
-### 2. Per-Compartment Performance Heatmap
+### 3. Per-Compartment Performance Heatmap
 
-![Cross-Validated Per-Class MCC Heatmap](figures/cross_validated_mcc_heatmap.png)
+![Cross-Validated Per-Class MCC Heatmap](figures/cross_validated_mcc_heatmap_smote.pdf)
 
 High-frequency compartments (`Membrane`, `Cell membrane`, `Extracellular`) achieve strong MCC scores ($>0.70\text{--}0.86$), while low-frequency compartments (`Peroxisome`, `Lysosome/Vacuole`) benefit substantially from Ridge regularization and calibrated thresholding.
 
-### 3. Independent HPA Test Set Generalization (1,716 Proteins)
+### 4. Independent HPA Test Set Generalization (1,716 Proteins)
 
 Evaluating the top-performing 2-Hidden-Layer MLP (`M2†`) across 5 independently trained model seeds on the held-out Human Protein Atlas test set:
 

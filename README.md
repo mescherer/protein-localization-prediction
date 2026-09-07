@@ -78,12 +78,14 @@ High-frequency compartments (`Membrane`, `Cell membrane`, `Extracellular`) achie
 
 ### 4. Independent HPA Test Set Generalization (1,716 Proteins)
 
-Evaluating the top-performing 2-Hidden-Layer MLP (`M2†`) across 5 independently trained model seeds on the held-out Human Protein Atlas test set:
+To test generalization, we evaluated the top-performing 2-Hidden-Layer MLP (`M2†`) across 5 independently trained model seeds on the held-out Human Protein Atlas test set:
 
 | Evaluation Strategy | Exact-Match Acc | Hamming Acc | Micro-F1 | Macro-F1 | Mean MCC |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Individual Seeds (Mean $\pm$ Std)** | $28.4 \pm 0.8\%$ | $87.1 \pm 0.3\%$ | $0.652 \pm 0.007$ | $0.581 \pm 0.009$ | $0.534 \pm 0.010$ |
 | **5-Model Probability Ensemble** | **$29.7\%$** | **$87.6\%$** | **$0.661$** | **$0.590$** | **$0.548$** |
+
+Poor exact-match accuracy was observed, however, high Hamming accuracy indicates that a large fraction of individual label decisions are correct. These results suggest that the model can identify the broad protein localization profile relatively well, but that it struggles to fully reproduce the multi-compartment profile perfectly. This especially challenging with rare labels and overlapping biological compartments. However, the Micro-F1 and Mean MCC values indicate that the model is going beyond simply predicting the most common compartment, but is actually learning localization to some extent.
 
 ---
 

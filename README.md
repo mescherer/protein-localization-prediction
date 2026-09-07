@@ -55,9 +55,11 @@ Leave-one-homology-partition-out cross-validated Matthews Correlation Coefficien
 
 > **Notation**: ‡ Class-weighted BCE ($\alpha_c = N / N_c$); ★ Sigmoid Focal Loss ($\gamma=2.0$); † L2 Ridge Frobenius penalty ($\lambda=10^{-4}$).
 
+Overall, these results indicate that the model successfully captures substantial label overlap (Jaccard, Micro-F1), but that exact assignments are difficult. The reason for this is possibly explained by the lower Macro-F1 and Mean-MCC, which make it clear that per-compartment accuracy is low. We hypothesized that this was due to dataset imbalance.
+
 ### 2. SMOTE Investigation
 
-Taking the best-performing model based on mean MCC, we tested several dataset-balancing techniques. All SMOTE variants used the same 2-hidden-layer MLP with L2 ridge regularization; the only difference between them was the data-balancing method. **Naive (per-label) SMOTE** treated each localization label independently: all proteins positive for a given label were included regardless of their other localizations, and the SMOTEd samples received only that target label. **Union SMOTE** assigned each SMOTEd sample the union of the labels from the pair used to generate it. **Matrix SMOTE** used a per-class label co-occurrence matrix to assign labels to each synthetic sample according to their estimated probabilities of co-occurrence. Unfortunately, improvement was not observed.
+To address this, we took the best-performing model based on mean MCC, we tested several SMOTE-based dataset-balancing techniques. All SMOTE variants used the same 2-hidden-layer MLP with L2 ridge regularization; the only difference between them was the data-balancing method. **Naive (per-label) SMOTE** treated each localization label independently: all proteins positive for a given label were included regardless of their other localizations, and the SMOTEd samples received only that target label. **Union SMOTE** assigned each SMOTEd sample the union of the labels from the pair used to generate it. **Matrix SMOTE** used a per-class label co-occurrence matrix to assign labels to each synthetic sample according to their estimated probabilities of co-occurrence. Unfortunately, improvement was not observed.
 
 | Model            |   Exact Match   |      Jaccard      |      Micro-F1     |      Macro-F1     |      Mean MCC     |
 | :--------------- | :-------------: | :---------------: | :---------------: | :---------------: | :---------------: |
@@ -69,6 +71,8 @@ Taking the best-performing model based on mean MCC, we tested several dataset-ba
 ### 3. Per-Compartment Performance Heatmap
 
 ![Cross-Validated Per-Class MCC Heatmap](figures/cross_validated_mcc_heatmap_smote.pdf)
+
+To investigate further, we analyzed the full MCC profile between the 11 classes. The results confirm that on under-represented classes, we see much poorer prediction.
 
 High-frequency compartments (`Membrane`, `Cell membrane`, `Extracellular`) achieve strong MCC scores ($>0.70\text{--}0.86$), while low-frequency compartments (`Peroxisome`, `Lysosome/Vacuole`) benefit substantially from Ridge regularization and calibrated thresholding.
 

@@ -216,6 +216,6 @@ All cross-validation splits enforce that homologous protein sequences belong to 
 
 ## Attribution
 
-- **Max Scherer**: Model architectures (Logistic Regression, 1H/2H MLPs), Ridge regularization, cross-validation benchmarking, loss ablations, sub-nuclear transfer experiments.
+- **Max Scherer**: Model architectures (Logistic Regression, 1H/2H MLPs), Ridge regularization, cross-validation benchmarking, loss ablations, sub-nuclear transfer experiments, SMOTE
 - **Michael Balagula**: Data pipeline curation and UniProt streaming extraction.
 - **Logan Campbell**: Evaluation design and metric aggregation.
